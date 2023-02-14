@@ -1,8 +1,6 @@
 // @ts-check
 import dotenv from 'dotenv';
 
-import { getGPTHeaders } from '../api/index.js';
-
 import { messageConfig } from './messageConfig.js';
 import { botCommands } from './botCommands.js';
 import { menus } from './menus.js';
@@ -10,6 +8,12 @@ import { menus } from './menus.js';
 
 dotenv.config({ path: `.env.local`, override: true });
 
+const getGPTHeaders = (API_KEY) => {
+  return {
+    ['Content-Type']: 'application/json',
+    ['Authorization']: `Bearer ${API_KEY}`,
+  };
+};
 
 export const getInitialProps = () => {
   const token = process.env.TG_TOKEN;

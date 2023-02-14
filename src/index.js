@@ -1,20 +1,41 @@
 // @ts-check
 import TelegramApi from 'node-telegram-bot-api';
+import axios from 'axios';
+import HttpsProxyAgent from 'https-proxy-agent';
 
 import { myUrls } from '../routes.js';
 import getInitialProps, { messageConfig, botCommands } from '../configs/index.js';
-import { getDataFromMessage, getMenu, getAnswer, getUserData, setUserPremium } from '../api/index.js';
+import { getMenu, getUserData, setUserPremium, buildProfile } from '../api/index.js';
 
 /// ********CONFIGURING******** ///
-const { headers, token } = getInitialProps();
-const bot = new TelegramApi(token, { polling: true });
 
-const usersDataBase = {}; /// { id, isPremium, chatId, }
+const { host, port, auth, headers } = getInitialProps();
+const httpsAgent = HttpsProxyAgent({ host, port, auth });
+const axiosWithProxy = axios.create({ httpsAgent });
+
+
 const waitingForCode = new Set();
 
 /// ********Sources******** ///
 
+const getAnswer = async (question) => {
+  const data = { ...messageConfig, ['prompt']: question };
+  try {
+    console.log('Trying to get answer on: ', question);
+    const response = await axiosWithProxy.post(myUrls.davinci, data, { headers });
+    const responseText = response.data.choices[0].text;
+    console.log('Got answer: ', response.data.choices[0].text);
+    return responseText;
+  } catch (error) {
+    console.log('ERROR IS:   ', error?.message);
+  }
+};
+
 const init = () => {
+  console.log('start');
+
+  const { token } = getInitialProps();
+  const bot = new TelegramApi(token, { polling: true });
 
   bot.setMyCommands(botCommands);
 
@@ -41,48 +62,26 @@ const init = () => {
       return bot.sendMessage(chatId, '***** Главное меню *****', getMenu('main'));
     }
 
-    if (text.startsWith('/getIp')) {
-      console.log('Setting request to address: ', myUrls.getIp)
-      axiosWithProxy.get(myUrls.getIp)
-        .then(response => console.log(response.data))
-        .catch(error => console.log('not got', error.message));
-    }
-    if (usersDataBase[chatId].isPremium) {
+    if (isPremium) {
       console.log('trying to get data');
-      getAnswer(text)
-        .then(response => bot.sendMessage(chatId, response))
-        .catch(error => bot.sendMessage(chatId, 'Ups, произошла ошибка! Иди на *уй!!'));
+      try {
+        const answer = await getAnswer(text);
+        await bot.sendMessage(chatId, answer);
+        return;
+      } catch (e) {
+        console.log('Need handling error', Object.keys(e.response));
+        await bot.sendMessage(chatId, 'Упс, кажется я сейчас загружен, попробуй спросить через пару минут...');
+        return;
+      }
     } else {
       console.log('unauthorized entry');
       return bot.sendMessage(chatId, 'Для использования бота необходима подписка', getMenu('subscription'));
-    }
-
-    if (text.startsWith('/models')) {
-      axios.get(myUrls.models, { headers })
-        .then(response => console.log(response.data.data[0]))
-        .catch(error => console.log('not got', error.message));
     }
   });
 
   bot.on('callback_query', async (msg) => {
     const action = msg.data;
     const chatId = msg.message?.chat.id;
-    const buildProfile = (id) => {
-      console.log('im working!!');
-      try {
-        const { userId, name, isPremium } = usersDataBase[id];
-        const userData = [
-          `Идентификатор: ${userId}`,
-          `Имя пользователя: ${name}`,
-          `Тарифный план: ${isPremium ? 'Премиум' : 'Без тарифного плана'}`,
-        ];
-        return userData.join('\n');
-      } catch (e) {
-        console.log('EEEERRRRRRRRRRRROOOOOOOORRR', e.message);
-      }
-
-    };
-
     switch (action) {
       case '/showAbout':
         return chatId && bot.sendMessage(chatId, 'Как пользоваться ботом\nЗдесь нужно кратко описать как пользоваться ботом - примеры. Подробные кейсы использования будут на сайте, стараемся переадресовать клиентов туда. Ссфлка ниже.', getMenu('about'));

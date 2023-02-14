@@ -46,6 +46,10 @@ export const getAnswer = async (question) => {
   }
 };
 
+const createNewUser = (chatId, name) => {
+  usersDataBase[chatId] = { chatId, isPremium: false, name };
+};
+
 export const getUserData = (msg) => {
   const chatId = msg.chat.id;
   const name = msg.chat.first_name;
@@ -57,12 +61,23 @@ export const getUserData = (msg) => {
   return { isPremium, name, text, chatId }
 };
 
-const createNewUser = (chatId, name) => {
-  usersDataBase[chatId] = { chatId, isPremium: false, name };
-};
-
 export const setUserPremium = (id) => {
   usersDataBase[id].isPremium = true; /// Здесь мы добавляем 30 дней, а не подписку флажим
 }
+
+export const buildProfile = (id) => {
+  console.log('im working!!');
+  try {
+    const { userId, name, isPremium } = usersDataBase[id];
+    const userData = [
+      `Идентификатор: ${userId}`,
+      `Имя пользователя: ${name}`,
+      `Тарифный план: ${isPremium ? 'Премиум' : 'Без тарифного плана'}`,
+    ];
+    return userData.join('\n');
+  } catch (e) {
+    console.log('EEEERRRRRRRRRRRROOOOOOOORRR', e.message);
+  }
+};
 
 
